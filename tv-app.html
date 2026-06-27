@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>Hermes AI — Samsung TV Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0c14;
+    --surface: #12172a;
+    --surface-hi: #1a2040;
+    --border: rgba(255,255,255,0.08);
+    --border-focus: #5b8fff;
+    --accent: #4f7eff;
+    --accent-glow: rgba(79,126,255,0.18);
+    --text-primary: #f0f2ff;
+    --text-secondary: #8a9bc4;
+    --text-muted: #4a567a;
+    --hermes-color: #7eb8ff;
+    --font: 'Samsung One', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    --radius: 16px;
+    --transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font);
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 36px 80px 28px;
+    border-bottom: 0.5px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .logo-area { display: flex; align-items: center; gap: 20px; }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: var(--accent);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-icon svg { width: 28px; height: 28px; fill: white; }
+
+  .logo-text { font-size: 28px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
+  .logo-sub { font-size: 15px; color: var(--text-secondary); margin-top: 2px; letter-spacing: 0.5px; }
+
+  .status-area { display: flex; align-items: center; gap: 12px; }
+
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #3b4c7a;
+    transition: background var(--transition);
+  }
+  .status-dot.connected { background: #3ddc84; box-shadow: 0 0 10px rgba(61,220,132,0.5); }
+  .status-dot.thinking { background: var(--accent); animation: pulse 1.2s infinite; }
+
+  .status-text { font-size: 17px; color: var(--text-secondary); min-width: 140px; }
+
+  .model-badge {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 24px;
+    padding: 8px 20px;
+    font-size: 15px;
+    color: var(--hermes-color);
+    font-weight: 500;
+  }
+
+  main { display: flex; flex: 1; gap: 0; overflow: hidden; }
+
+  .sidebar {
+    width: 560px;
+    flex-shrink: 0;
+    padding: 40px 40px 40px 80px;
+    border-right: 0.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  #preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .sidebar-title {
+    font-size: 17px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .preset-btn {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    text-align: left;
+    cursor: pointer;
+    transition: all var(--transition);
+    outline: none;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .preset-btn::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity var(--transition);
+  }
+
+  .preset-btn:focus,
+  .preset-btn.focused {
+    background: var(--surface-hi);
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  .preset-btn:focus::before,
+  .preset-btn.focused::before { opacity: 1; }
+
+  .preset-btn:active,
+  .preset-btn.active {
+    transform: scale(0.98);
+    background: var(--accent-glow);
+    border-color: var(--accent);
+  }
+
+  .preset-category {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .preset-question { font-size: 18px; color: var(--text-primary); line-height: 1.45; font-weight: 400; }
+  .preset-hint { margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+
+  .custom-input-card {
+    border-style: dashed;
+    border-color: rgba(126, 184, 255, 0.4);
+  }
+  .custom-input-card .preset-category { color: var(--hermes-color); }
+  .custom-input-card.editing {
+    border-style: solid;
+    background: var(--surface-hi);
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .custom-input {
+    display: none;
+    width: 100%;
+    margin-top: 14px;
+    padding: 14px 16px;
+    font-size: 18px;
+    font-family: var(--font);
+    color: var(--text-primary);
+    background: var(--bg);
+    border: 1px solid var(--border-focus);
+    border-radius: 10px;
+    outline: none;
+  }
+  .custom-input-card.editing .custom-input { display: block; }
+  .custom-input-card.editing .preset-hint { display: none; }
+
+  .key-hint {
+    margin-top: auto;
+    padding-top: 24px;
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .key-hint-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-muted); }
+
+  .key-badge {
+    background: var(--surface-hi);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-family: monospace;
+  }
+
+  .response-area {
+    flex: 1;
+    padding: 48px 80px 48px 64px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .question-display {
+    font-size: 17px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .question-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .question-text { color: var(--text-primary); font-size: 19px; font-weight: 500; }
+
+  .answer-box {
+    flex: 1;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 24px;
+    padding: 48px 56px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .answer-idle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    text-align: center;
+  }
+
+  .idle-icon {
+    width: 80px; height: 80px;
+    border-radius: 24px;
+    background: var(--surface-hi);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .idle-icon svg { width: 44px; height: 44px; opacity: 0.4; }
+
+  .idle-text { font-size: 22px; color: var(--text-muted); line-height: 1.6; }
+
+  .answer-content { display: none; flex-direction: column; justify-content: center; height: 100%; }
+  .answer-content.visible { display: flex; }
+
+  .answer-icon {
+    font-size: 56px;
+    line-height: 1;
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .answer-icon.visible { opacity: 1; transform: scale(1); }
+
+  .answer-text { font-size: 26px; line-height: 1.7; color: var(--text-primary); font-weight: 400; letter-spacing: -0.2px; }
+  .answer-text.hidden { display: none; }
+
+  .steps-grid {
+    display: none;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  .steps-grid.visible { display: grid; }
+
+  .step-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    background: var(--surface-hi);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.35s, transform 0.35s;
+  }
+  .step-card.visible { opacity: 1; transform: translateY(0); }
+
+  .step-number {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .step-text { font-size: 19px; line-height: 1.5; color: var(--text-primary); padding-top: 4px; }
+
+  .cursor {
+    display: inline-block;
+    width: 3px; height: 28px;
+    background: var(--hermes-color);
+    border-radius: 2px;
+    margin-left: 4px;
+    vertical-align: middle;
+    animation: blink 0.9s step-end infinite;
+  }
+
+  .answer-meta {
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 20px;
+    border-top: 0.5px solid var(--border);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .answer-meta.visible { opacity: 1; }
+
+  .meta-model { font-size: 14px; color: var(--text-muted); }
+  .meta-model span { color: var(--hermes-color); font-weight: 500; }
+
+  .thinking-indicator { display: none; align-items: center; gap: 14px; font-size: 18px; color: var(--text-muted); }
+  .thinking-indicator.visible { display: flex; }
+
+  .thinking-dots { display: flex; gap: 6px; }
+  .thinking-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: thinking 1.4s ease-in-out infinite; }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,12,20,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    z-index: 100;
+    transition: opacity 0.4s;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .overlay-icon {
+    width: 96px; height: 96px;
+    border-radius: 28px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .overlay-icon svg { width: 52px; height: 52px; }
+
+  .overlay-title { font-size: 32px; font-weight: 600; color: var(--text-primary); }
+  .overlay-sub { font-size: 20px; color: var(--text-secondary); text-align: center; line-height: 1.6; }
+
+  .overlay-url {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 32px;
+    font-size: 18px;
+    color: var(--hermes-color);
+    font-family: monospace;
+    letter-spacing: 0.5px;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(79,126,255,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(79,126,255,0); }
+  }
+  @keyframes thinking {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1.1); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-icon">
+    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="26" cy="26" r="18" stroke="#4f7eff" stroke-width="2.5" stroke-dasharray="4 4" opacity="0.5"/>
+      <circle cx="26" cy="26" r="8" fill="#4f7eff" opacity="0.9"/>
+    </svg>
+  </div>
+  <div class="overlay-title">Hermes AI 연결 중...</div>
+  <div class="overlay-sub">Mac mini Bridge Server에 접속하는 중입니다</div>
+  <div class="overlay-url" id="overlay-url">연결 대기 중</div>
+</div>
+
+<header>
+  <div class="logo-area">
+    <div class="logo-icon">
+      <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 3L25 9V19L14 25L3 19V9L14 3Z" fill="white" opacity="0.9"/>
+        <circle cx="14" cy="14" r="4" fill="rgba(79,126,255,0.6)"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">Hermes AI</div>
+      <div class="logo-sub">Samsung TV · Local Agent Demo</div>
+    </div>
+  </div>
+
+  <div class="status-area">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-text" id="status-text">연결 중...</span>
+    <div class="model-badge" id="model-badge">모델 로딩 중</div>
+  </div>
+</header>
+
+<main>
+  <nav class="sidebar">
+    <div class="sidebar-title">질문 선택</div>
+
+    <div class="preset-btn custom-input-card focused" id="custom-input-card"
+      tabindex="0" onclick="enterCustomInputMode()">
+      <div class="preset-category">직접 입력</div>
+      <div class="preset-question">✏️ 궁금한 걸 직접 물어보세요</div>
+      <div class="preset-hint" id="custom-input-hint">확인을 누르면 키보드가 나와요</div>
+      <input type="text" id="custom-question-input" class="custom-input"
+        placeholder="질문을 입력하세요" maxlength="120">
+    </div>
+
+    <div id="preset-list"></div>
+
+    <div class="key-hint">
+      <div class="key-hint-item"><span class="key-badge">▲ ▼</span><span>항목 이동</span></div>
+      <div class="key-hint-item"><span class="key-badge">확인</span><span>선택 / 전송</span></div>
+      <div class="key-hint-item"><span class="key-badge">뒤로</span><span>취소 / 초기화</span></div>
+    </div>
+  </nav>
+
+  <section class="response-area">
+    <div class="question-display" id="question-display">
+      <span class="question-label">질문</span>
+      <span class="question-text" id="question-text">왼쪽에서 질문을 선택하세요</span>
+    </div>
+
+    <div class="answer-box">
+      <div class="answer-idle" id="answer-idle">
+        <div class="idle-icon">
+          <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22 8C14.27 8 8 14.27 8 22C8 29.73 14.27 36 22 36C29.73 36 36 29.73 36 22C36 14.27 29.73 8 22 8Z" stroke="white" stroke-width="2"/>
+            <path d="M22 16V22L26 26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="idle-text">Hermes AI가 대기 중입니다<br>왼쪽에서 질문을 선택하면 답변을 시작합니다</div>
+      </div>
+
+      <div class="thinking-indicator" id="thinking-indicator">
+        <div class="thinking-dots"><span></span><span></span><span></span></div>
+        <span>Hermes가 생각하는 중...</span>
+      </div>
+
+      <div class="answer-content" id="answer-content">
+        <div class="answer-icon" id="answer-icon">🤖</div>
+        <div class="answer-text" id="answer-text"></div>
+        <div class="steps-grid" id="steps-grid"></div>
+        <div class="answer-meta" id="answer-meta">
+          <span class="meta-model">답변: <span id="meta-model-name">Hermes</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ── 설정 ──────────────────────────────────────────────────────────────────
+// TV는 Mac mini의 주소를 알면 되고, Mac mini는 TV의 주소를 몰라도 됩니다.
+// 이 페이지를 로드한 주소(LAN IP든 Cloudflare Tunnel 도메인이든)와 같은 호스트로
+// WebSocket을 연결한다. 그래서 LAN/터널 어느 쪽으로 열어도 수정 없이 그대로 동작한다.
+// Tizen 앱으로 패키징되면 file://에서 실행되어 location.host가 비므로,
+// 그 경우엔 Mac mini의 고정 IP(static IP로 설정됨, 192.168.0.77)로 직접 접속한다.
+// 브라우저에서 URL로 열었을 때는(LAN/Cloudflare Tunnel 어느 쪽이든) 그대로 같은 호스트로 접속한다.
+const FIXED_BRIDGE_HOST = "192.168.0.77:3000";
+
+const CONFIG = {
+  WS_URL: (location.protocol === "file:" || !location.host)
+    ? "ws://" + FIXED_BRIDGE_HOST
+    : (location.protocol === "https:" ? "wss://" : "ws://") + location.host,
+  RECONNECT_DELAY: 3000,
+  PRESET_COUNT: 6,
+};
+
+// 새로고침할 때마다 이 풀에서 PRESET_COUNT개를 무작위로 뽑아 보여준다.
+const QUESTION_POOL = [
+  { category: "날씨 정보", question: "오늘 날씨와 외출 추천", hint: "현재 날씨 기반 외출 제안",
+    q: "오늘 날씨가 어때? 외출하기 좋을지 알려줘." },
+  { category: "제품 안내", question: "삼성 AI TV 핵심 기능 소개", hint: "AI 기능 3가지 요약 설명",
+    q: "삼성 AI TV의 핵심 기능 3가지를 쉽게 설명해줘." },
+  { category: "엔터테인먼트", question: "오늘 저녁 가족 영화 추천", hint: "장르별 맞춤 영화 제안",
+    q: "오늘 저녁 가족 모두가 즐길 수 있는 영화를 추천해줘. 액션과 코미디 중 어떤 장르가 좋을까?" },
+  { category: "요리 & 레시피", question: "간단한 저녁 레시피 추천", hint: "기본 재료로 만드는 요리",
+    q: "간단하고 맛있는 저녁 레시피를 알려줘. 재료는 동네 슈퍼에서 구할 수 있는 기본 재료만 사용해요." },
+  { category: "IT 트렌드", question: "최신 AI 기술 트렌드", hint: "일반 사용자를 위한 AI 트렌드",
+    q: "최근 AI 기술 트렌드 중 일반 사용자가 알아두면 좋은 것 3가지를 알려줘." },
+  { category: "건강 & 운동", question: "스트레칭 10분 루틴", hint: "지금 바로 따라하는 운동",
+    q: "지금 할 수 있는 10분짜리 간단한 스트레칭 루틴을 알려줘." },
+  { category: "여행", question: "제주도 여행 코스", hint: "당일/1박 코스 추천",
+    q: "제주도 여행 코스를 짜줘." },
+  { category: "경제 & 금융", question: "복리란 무엇인가", hint: "쉬운 복리 개념 설명",
+    q: "복리가 뭔지 쉽게 설명해줘." },
+  { category: "역사", question: "한글날의 유래", hint: "세종대왕과 한글 창제",
+    q: "한글날은 왜 생긴 거야?" },
+  { category: "심리", question: "번아웃 증후군 증상", hint: "초기 신호 자가 점검",
+    q: "번아웃 증후군의 증상을 알려줘." },
+  { category: "직장 생활", question: "면접 자기소개 팁", hint: "좋은 첫인상 만드는 법",
+    q: "면접에서 자기소개를 잘하는 방법을 알려줘." },
+  { category: "반려동물", question: "강아지 기본 훈련", hint: "필수 명령어 알아보기",
+    q: "강아지 훈련 기본 명령어를 알려줘." },
+  { category: "환경", question: "일상 속 환경보호", hint: "오늘부터 실천하는 습관",
+    q: "일상에서 할 수 있는 환경보호 실천법을 알려줘." },
+  { category: "요리 & 레시피", question: "라면 맛있게 끓이기", hint: "한 끗 다른 라면 팁",
+    q: "라면을 더 맛있게 끓이는 팁을 알려줘." },
+  { category: "건강 & 운동", question: "수면과 건강", hint: "수면 부족의 영향",
+    q: "수면 부족이 건강에 미치는 영향을 알려줘." },
+  { category: "번역", question: "일본어 인사말", hint: "고양이는 일본어로?",
+    q: "'고양이'를 일본어로 뭐라고 해?" },
+  { category: "유머", question: "가벼운 농담 한마디", hint: "웃으면서 시작하기",
+    q: "유머 하나 들려줘." },
+  { category: "과학 상식", question: "오로라가 생기는 원리", hint: "신비로운 밤하늘 현상",
+    q: "오로라가 생기는 원리를 설명해줘." },
+];
+
+function pickRandomPresets(n) {
+  const pool = [...QUESTION_POOL];
+  const picked = [];
+  for (let i = 0; i < n && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    picked.push(pool.splice(idx, 1)[0]);
+  }
+  return picked;
+}
+
+function renderPresets() {
+  const list = document.getElementById("preset-list");
+  const presets = pickRandomPresets(CONFIG.PRESET_COUNT);
+  // index 0은 항상 "직접 입력" 카드(고정)이므로 동적 목록에는 focused를 주지 않는다.
+  list.innerHTML = presets.map((p, i) => `
+    <button class="preset-btn" data-idx="${i}"
+      onclick="askQuestion(this)" data-q="${escapeHtml(p.q)}">
+      <div class="preset-category">${escapeHtml(p.category)}</div>
+      <div class="preset-question">${escapeHtml(p.question)}</div>
+      <div class="preset-hint">${escapeHtml(p.hint)}</div>
+    </button>
+  `).join("");
+  focusedIdx = 0;
+}
+
+let ws = null;
+let currentAnswer = "";
+let isStreaming = false;
+let focusedIdx = 0;
+let currentModel = "Hermes";
+const buttons = () => document.querySelectorAll(".preset-btn");
+
+function connect() {
+  document.getElementById("overlay-url").textContent = CONFIG.WS_URL;
+  setStatus("connecting");
+
+  ws = new WebSocket(CONFIG.WS_URL);
+
+  ws.onopen = () => {
+    setStatus("connected");
+    document.getElementById("overlay").classList.add("hidden");
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === "connected") {
+      currentModel = msg.model || "Hermes";
+      document.getElementById("model-badge").textContent = currentModel;
+      document.getElementById("meta-model-name").textContent = currentModel;
+    }
+
+    if (msg.type === "start") {
+      currentAnswer = "";
+      showThinking(false);
+      showAnswer(true);
+      setStatus("streaming");
+    }
+
+    if (msg.type === "icon") {
+      const iconEl = document.getElementById("answer-icon");
+      iconEl.textContent = msg.icon || "🤖";
+      iconEl.classList.add("visible");
+    }
+
+    if (msg.type === "token") {
+      currentAnswer += msg.text;
+      document.getElementById("answer-text").innerHTML =
+        escapeHtml(currentAnswer) + '<span class="cursor"></span>';
+    }
+
+    if (msg.type === "done") {
+      document.querySelector(".cursor")?.remove();
+      renderFinalAnswer(currentAnswer, msg.steps);
+      document.getElementById("answer-meta").classList.add("visible");
+      isStreaming = false;
+      setStatus("connected");
+    }
+
+    if (msg.type === "error") {
+      showError(msg.text);
+      isStreaming = false;
+      setStatus("connected");
+    }
+  };
+
+  ws.onclose = () => {
+    setStatus("disconnected");
+    document.getElementById("overlay").classList.remove("hidden");
+    setTimeout(connect, CONFIG.RECONNECT_DELAY);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function submitQuestion(question) {
+  if (isStreaming || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!question) return;
+
+  isStreaming = true;
+  currentAnswer = "";
+
+  document.getElementById("question-text").textContent = question;
+  document.getElementById("answer-idle").style.display = "none";
+  document.getElementById("answer-content").classList.remove("visible");
+  document.getElementById("answer-meta").classList.remove("visible");
+  document.getElementById("answer-icon").classList.remove("visible");
+  document.getElementById("answer-text").classList.remove("hidden");
+  const stepsGrid = document.getElementById("steps-grid");
+  stepsGrid.classList.remove("visible");
+  stepsGrid.innerHTML = "";
+  showThinking(true);
+  setStatus("thinking");
+
+  ws.send(JSON.stringify({ type: "ask", question, requestId: Date.now() }));
+}
+
+function askQuestion(btn) {
+  const question = btn.getAttribute("data-q");
+  if (!question) return;
+  submitQuestion(question);
+  btn.classList.add("active");
+  setTimeout(() => btn.classList.remove("active"), 300);
+}
+
+// ── 직접 입력(리모컨 + On Screen Keyboard) ──────────────────────────────
+let textInputMode = false;
+
+function enterCustomInputMode() {
+  if (isStreaming) return;
+  textInputMode = true;
+  const card = document.getElementById("custom-input-card");
+  const input = document.getElementById("custom-question-input");
+  card.classList.add("editing");
+  input.value = "";
+  // focus()를 호출하면 Tizen TV의 On Screen Keyboard가 자동으로 올라온다.
+  input.focus();
+}
+
+function exitCustomInputMode() {
+  textInputMode = false;
+  const card = document.getElementById("custom-input-card");
+  const input = document.getElementById("custom-question-input");
+  card.classList.remove("editing");
+  input.blur();
+}
+
+document.getElementById("custom-question-input").addEventListener("keydown", (e) => {
+  // 65376: Tizen 리모컨 OK(확인), 10009: Tizen 리모컨 Return(뒤로)
+  if (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 65376) {
+    e.preventDefault();
+    e.stopPropagation();
+    const text = e.target.value.trim();
+    if (text) {
+      exitCustomInputMode();
+      submitQuestion(text);
+    }
+    return;
+  }
+  if (e.keyCode === 10009) {
+    e.preventDefault();
+    e.stopPropagation();
+    exitCustomInputMode();
+  }
+});
+
+// 답변이 번호 목록(steps)이면 카드 그리드로, 아니면 일반 문단으로 보여준다.
+function renderFinalAnswer(text, steps) {
+  const textEl = document.getElementById("answer-text");
+  const stepsGrid = document.getElementById("steps-grid");
+
+  if (steps && steps.length >= 2) {
+    textEl.classList.add("hidden");
+    stepsGrid.innerHTML = steps.map((s, i) => `
+      <div class="step-card" style="transition-delay:${i * 80}ms">
+        <div class="step-number">${i + 1}</div>
+        <div class="step-text">${escapeHtml(s)}</div>
+      </div>
+    `).join("");
+    stepsGrid.classList.add("visible");
+    requestAnimationFrame(() => {
+      stepsGrid.querySelectorAll(".step-card").forEach((card) => card.classList.add("visible"));
+    });
+  } else {
+    stepsGrid.classList.remove("visible");
+    stepsGrid.innerHTML = "";
+    textEl.classList.remove("hidden");
+    textEl.innerHTML = escapeHtml(text);
+  }
+}
+
+function setStatus(state) {
+  const dot = document.getElementById("status-dot");
+  const text = document.getElementById("status-text");
+  const states = {
+    connecting:    { cls: "",          label: "연결 중..." },
+    connected:     { cls: "connected", label: "연결됨" },
+    thinking:      { cls: "thinking",  label: "생각 중..." },
+    streaming:     { cls: "thinking",  label: "답변 생성 중" },
+    disconnected:  { cls: "",          label: "재연결 중..." },
+  };
+  const s = states[state] || states.disconnected;
+  dot.className = "status-dot " + s.cls;
+  text.textContent = s.label;
+}
+
+function showThinking(show) {
+  document.getElementById("thinking-indicator").classList.toggle("visible", show);
+}
+
+function showAnswer(show) {
+  document.getElementById("answer-content").classList.toggle("visible", show);
+}
+
+function showError(msg) {
+  showThinking(false);
+  showAnswer(true);
+  document.getElementById("steps-grid").classList.remove("visible");
+  const textEl = document.getElementById("answer-text");
+  textEl.classList.remove("hidden");
+  textEl.innerHTML = `<span style="color:#ff6b6b">오류가 발생했습니다: ${escapeHtml(msg)}</span>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+          .replace(/\n/g,"<br>");
+}
+
+document.addEventListener("keydown", (e) => {
+  // 직접 입력(OSK) 중에는 글자 입력/삭제가 우선이고, 리스트 네비게이션은 끈다.
+  // Enter/Return은 input 자체의 keydown 리스너가 처리한다.
+  if (textInputMode) return;
+
+  const btns = buttons();
+
+  if (e.key === "ArrowUp" || e.keyCode === 38) {
+    e.preventDefault();
+    btns[focusedIdx]?.classList.remove("focused");
+    focusedIdx = Math.max(0, focusedIdx - 1);
+    btns[focusedIdx]?.classList.add("focused");
+    btns[focusedIdx]?.scrollIntoView({ block: "nearest" });
+  }
+
+  if (e.key === "ArrowDown" || e.keyCode === 40) {
+    e.preventDefault();
+    btns[focusedIdx]?.classList.remove("focused");
+    focusedIdx = Math.min(btns.length - 1, focusedIdx + 1);
+    btns[focusedIdx]?.classList.add("focused");
+    btns[focusedIdx]?.scrollIntoView({ block: "nearest" });
+  }
+
+  // 65376: Tizen 리모컨 OK(확인) 키코드
+  if (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 65376) {
+    e.preventDefault();
+    if (isStreaming) return;
+    const focused = btns[focusedIdx];
+    if (focused?.id === "custom-input-card") {
+      enterCustomInputMode();
+    } else {
+      askQuestion(focused);
+    }
+  }
+
+  // 10009: Tizen 리모컨 Return(뒤로) 키코드
+  if (e.key === "Backspace" || e.keyCode === 8 || e.keyCode === 10009) {
+    e.preventDefault();
+    resetView();
+  }
+});
+
+function resetView() {
+  if (isStreaming) return;
+  document.getElementById("question-text").textContent = "왼쪽에서 질문을 선택하세요";
+  document.getElementById("answer-idle").style.display = "";
+  document.getElementById("answer-content").classList.remove("visible");
+  document.getElementById("answer-meta").classList.remove("visible");
+  document.getElementById("answer-icon").classList.remove("visible");
+  document.getElementById("steps-grid").classList.remove("visible");
+  document.getElementById("steps-grid").innerHTML = "";
+  showThinking(false);
+  currentAnswer = "";
+}
+
+renderPresets();
+connect();
+</script>
+</body>
+</html>

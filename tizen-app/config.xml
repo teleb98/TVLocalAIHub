@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://hermes.local/HermesTVDemo"
+        version="1.0.0"
+        viewmodes="maximized">
+    <tizen:application id="HermesTVAi.HermesTVDemo" package="HermesTVAi" required_version="6.5"/>
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.normal.d"/>
+    <icon src="icon.png"/>
+    <name>Hermes TV Demo</name>
+    <tizen:profile name="tv"/>
+
+    <!-- bridge-server(Mac mini)와 통신하기 위한 최소 권한, 둘 다 public 레벨이라
+         일반 author 인증서로 충분하다 (Seller Office 인증 시에도 별도 승인 불필요) -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/network.get"/>
+
+    <tizen:setting screen-orientation="landscape"
+                    context-menu="disable"
+                    background-support="disable"
+                    encryption="disable"
+                    install-location="auto"
+                    hwkey-event="enable"/>
+</widget>

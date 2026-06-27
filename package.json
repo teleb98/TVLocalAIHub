@@ -1,0 +1,13 @@
+{
+  "name": "hermes-tv-bridge",
+  "version": "1.0.0",
+  "description": "Hermes AI bridge server for Samsung TV demo (WebSocket + REST to Ollama)",
+  "main": "bridge-server.js",
+  "scripts": {
+    "start": "node bridge-server.js",
+    "dev": "node --watch bridge-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
