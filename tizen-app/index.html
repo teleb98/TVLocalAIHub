@@ -186,6 +186,7 @@
   }
   .custom-input-card.editing .custom-input { display: block; }
   .custom-input-card.editing .preset-hint { display: none; }
+  .overlay-settings.editing .custom-input { display: block; }
 
   .key-hint {
     margin-top: auto;
@@ -391,6 +392,29 @@
     letter-spacing: 0.5px;
   }
 
+  .overlay-settings {
+    width: 560px;
+    background: var(--surface);
+    border: 1px dashed rgba(126, 184, 255, 0.4);
+    border-radius: 16px;
+    padding: 20px 24px;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .overlay-settings:focus,
+  .overlay-settings.focused {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  .overlay-settings.editing {
+    border-style: solid;
+    background: var(--surface-hi);
+    border-color: var(--border-focus);
+  }
+
+  .overlay-settings-hint { font-size: 16px; color: var(--hermes-color); text-align: center; }
+  .overlay-settings.editing .overlay-settings-hint { display: none; }
+
   @keyframes blink { 50% { opacity: 0; } }
   @keyframes pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(79,126,255,0.4); }
@@ -412,8 +436,14 @@
     </svg>
   </div>
   <div class="overlay-title">Hermes AI 연결 중...</div>
-  <div class="overlay-sub">Mac mini Bridge Server에 접속하는 중입니다</div>
+  <div class="overlay-sub">집과 같은 Wi-Fi가 아니라면(예: 회사 데모) 아래에서 서버 주소를 직접 입력하세요</div>
   <div class="overlay-url" id="overlay-url">연결 대기 중</div>
+
+  <div class="overlay-settings" id="overlay-settings" tabindex="0" onclick="openServerSettings()">
+    <div class="overlay-settings-hint" id="overlay-settings-hint">⚙️ 확인(OK)을 누르면 서버 주소를 입력할 수 있어요</div>
+    <input type="text" id="server-address-input" class="custom-input"
+      placeholder="예: my-tunnel.trycloudflare.com (비우고 확인 시 기본값으로 초기화)">
+  </div>
 </div>
 
 <header>
@@ -502,11 +532,18 @@
 // 그 경우엔 Mac mini의 고정 IP(static IP로 설정됨, 192.168.0.77)로 직접 접속한다.
 // 브라우저에서 URL로 열었을 때는(LAN/Cloudflare Tunnel 어느 쪽이든) 그대로 같은 호스트로 접속한다.
 const FIXED_BRIDGE_HOST = "192.168.0.77:3000";
+const WS_URL_OVERRIDE_KEY = "hermes_tv_ws_url_override";
 
-const CONFIG = {
-  WS_URL: (location.protocol === "file:" || !location.host)
+function defaultWsUrl() {
+  return (location.protocol === "file:" || !location.host)
     ? "ws://" + FIXED_BRIDGE_HOST
-    : (location.protocol === "https:" ? "wss://" : "ws://") + location.host,
+    : (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
+}
+
+// 회사 등 다른 네트워크에서 데모할 때는 고정 LAN IP가 닿지 않으므로,
+// 리모컨으로 직접 입력한 주소가 있으면(localStorage) 그걸 우선 사용한다.
+const CONFIG = {
+  WS_URL: localStorage.getItem(WS_URL_OVERRIDE_KEY) || defaultWsUrl(),
   RECONNECT_DELAY: 3000,
   PRESET_COUNT: 6,
 };
@@ -581,15 +618,23 @@ let currentAnswer = "";
 let isStreaming = false;
 let focusedIdx = 0;
 let currentModel = "Hermes";
+let overlayVisible = true;
 const buttons = () => document.querySelectorAll(".preset-btn");
 
+let reconnectTimer = null;
+
 function connect() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   document.getElementById("overlay-url").textContent = CONFIG.WS_URL;
   setStatus("connecting");
 
   ws = new WebSocket(CONFIG.WS_URL);
 
   ws.onopen = () => {
+    overlayVisible = false;
     setStatus("connected");
     document.getElementById("overlay").classList.add("hidden");
   };
@@ -638,9 +683,10 @@ function connect() {
   };
 
   ws.onclose = () => {
+    overlayVisible = true;
     setStatus("disconnected");
     document.getElementById("overlay").classList.remove("hidden");
-    setTimeout(connect, CONFIG.RECONNECT_DELAY);
+    reconnectTimer = setTimeout(connect, CONFIG.RECONNECT_DELAY);
   };
 
   ws.onerror = () => ws.close();
@@ -717,6 +763,63 @@ document.getElementById("custom-question-input").addEventListener("keydown", (e)
   }
 });
 
+// ── 서버 주소 설정 (집 Wi-Fi가 아닌 곳에서 데모할 때) ───────────────────
+function openServerSettings() {
+  if (isStreaming) return;
+  textInputMode = true;
+  const panel = document.getElementById("overlay-settings");
+  const input = document.getElementById("server-address-input");
+  panel.classList.add("editing");
+  input.value = CONFIG.WS_URL.replace(/^wss?:\/\//, "");
+  input.focus();
+  input.select(); // 바로 타이핑하면 기존 값을 덮어쓰도록 전체 선택
+}
+
+function closeServerSettings() {
+  textInputMode = false;
+  document.getElementById("overlay-settings").classList.remove("editing");
+  document.getElementById("server-address-input").blur();
+}
+
+function saveServerSettings(rawValue) {
+  const value = rawValue.trim();
+
+  if (!value) {
+    // 비워두고 확인 -> 기본 주소(고정 LAN IP 등)로 초기화
+    localStorage.removeItem(WS_URL_OVERRIDE_KEY);
+    CONFIG.WS_URL = defaultWsUrl();
+  } else {
+    let url = value;
+    if (!/^wss?:\/\//.test(url)) {
+      const host = url.split(":")[0];
+      const looksLikeIp = /^\d+\.\d+\.\d+\.\d+$/.test(host) || host === "localhost";
+      url = (looksLikeIp ? "ws://" : "wss://") + url;
+    }
+    localStorage.setItem(WS_URL_OVERRIDE_KEY, url);
+    CONFIG.WS_URL = url;
+  }
+
+  closeServerSettings();
+  if (ws) {
+    try { ws.close(); } catch { /* 무시 */ }
+  }
+  connect();
+}
+
+document.getElementById("server-address-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 65376) {
+    e.preventDefault();
+    e.stopPropagation();
+    saveServerSettings(e.target.value);
+    return;
+  }
+  if (e.keyCode === 10009) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeServerSettings();
+  }
+});
+
 // 답변이 번호 목록(steps)이면 카드 그리드로, 아니면 일반 문단으로 보여준다.
 function renderFinalAnswer(text, steps) {
   const textEl = document.getElementById("answer-text");
@@ -783,6 +886,16 @@ document.addEventListener("keydown", (e) => {
   // 직접 입력(OSK) 중에는 글자 입력/삭제가 우선이고, 리스트 네비게이션은 끈다.
   // Enter/Return은 input 자체의 keydown 리스너가 처리한다.
   if (textInputMode) return;
+
+  // 연결 중/끊김 상태(오버레이가 떠 있을 때)는 확인(OK)을 누르면 서버 주소 설정을 열고,
+  // 그 외 리스트 네비게이션은 의미가 없으므로 무시한다.
+  if (overlayVisible) {
+    if (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 65376) {
+      e.preventDefault();
+      openServerSettings();
+    }
+    return;
+  }
 
   const btns = buttons();
 

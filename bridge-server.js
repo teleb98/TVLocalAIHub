@@ -110,6 +110,24 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Tizen 위젯 다운로드 (Tizen Studio Device Manager 없이도 받을 수 있게) ──
+  if (url.pathname === "/widget.wgt" && req.method === "GET") {
+    const wgtPath = path.join(__dirname, "HermesTVDemo-signed.wgt");
+    fs.readFile(wgtPath, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end("widget.wgt를 찾을 수 없습니다");
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": 'attachment; filename="HermesTVDemo.wgt"',
+      });
+      res.end(data);
+    });
+    return;
+  }
+
   // ── Health check ──
   if (url.pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
